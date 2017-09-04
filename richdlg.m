@@ -1,21 +1,22 @@
 function [ data ] = richdlg( data, title )
-%RICHDLG Create and show rich input dialog, with textboxes, checkboxes and
-%combos
+%RICHDLG Create and show rich input dialog, with textboxes, checkboxes,
+%combos, file dialogs. Supports matrices and multiline strings.
 %
 %   DATA should be a structure with fields: 
-%   name
-%   value 
-%   dtype ('double','string','logical','vector','matrix','file')
-%   gtype ('single','choice','checkbox','file','matrix','title')
-%   values (for gtype choice its the choice values and for file its  a cell
-%   array of the form {"in"/"out",".wav,*.WAV" etc}
-%   fixed (true/false, default = false)
-%   hide  (true/false, default = false)
+%   * name (this is not visible for dtype comment and title)
+%   * dtype ('double','string','logical','file_in','file_out','title',
+%   'comment')
+%   * value (can be multiline for dtype string and double) 
+%   * values (for dtype string or double: a cell array with drop down 
+%   option. must be single line string or single number. for file_in/out: 
+%   a string with the file types, ".wav,*.WAV" etc.) 
+%   * fixed - optional (true/false, default = false)
+%   * hide - optional (true/false, default = false)
 %
 %   Note that logical, file and matrix dtypes automatically go into 
 %   checkbox, file and matrix file gtypes (respectively)
 %
-%   See also RICHDLGP, QUESTDLG, INPUTDLG.
+%   See also QUESTDLG, INPUTDLG.
 
     % build popup
     [data,fig] = richdlg_build(data,title);
@@ -63,6 +64,10 @@ function [data,fig] = richdlg_build(data,title)
             data(i).hide = false;
         end
         
+        if ~isfield(data(i),'fixed')
+            data(i).fixed = false;
+        end
+        
         % some dtypes and gtypes go together:
         if strcmp(data(i).dtype,'logical')
             data(i).gtype = 'checkbox';
@@ -73,19 +78,29 @@ function [data,fig] = richdlg_build(data,title)
         end
         
         % create ui controls
-        switch data(i).gtype
-            case 'single'
-                [H,h] = richdlg_build_single(fig,data(i),h,fw,sw,cbh,txh,sth);
-            case 'matrix'
-                [H,h] = richdlg_build_matrix(fig,data(i),h,fw,sw,cbh,txh,sth);
-            case 'choice'
-                [H,h] = richdlg_build_choice(fig,data(i),h,fw,sw,cbh,txh,sth);
-            case 'checkbox'
+        switch data(i).dtype
+            case 'string'
+                if isfield(data(i),'values') && ~isempty(data(i).values)
+                    [H,h] = richdlg_build_choice(fig,data(i),h,fw,sw,cbh,txh,sth);
+                else
+                    [H,h] = richdlg_build_matrix(fig,data(i),h,fw,sw,cbh,txh,sth);
+                end
+            case 'double'
+                if isfield(data(i),'values') && ~isempty(data(i).values)
+                    [H,h] = richdlg_build_choice(fig,data(i),h,fw,sw,cbh,txh,sth);
+                else
+                    [H,h] = richdlg_build_matrix(fig,data(i),h,fw,sw,cbh,txh,sth);
+                end
+            case 'logical'
                 [H,h] = richdlg_build_checkbox(fig,data(i),h,fw,sw,cbh,txh,sth);
-            case 'file'
-                [H,h] = richdlg_build_file(fig,data(i),h,fw,sw,cbh,txh,sth);
+            case 'file_in'
+                [H,h] = richdlg_build_file(fig,data(i),h,fw,sw,cbh,txh,sth,'in');
+            case 'file_out'
+                [H,h] = richdlg_build_file(fig,data(i),h,fw,sw,cbh,txh,sth,'out');
             case 'title'
                 [H,h] = richdlg_build_title(fig,data(i),h,fw,sw,cbh,txh,sth);
+            case 'comment'
+                [H,h] = richdlg_build_comment(fig,data(i),h,fw,sw,cbh,txh,sth);
         end
         data(i).uihandle = H;
        
@@ -116,34 +131,36 @@ function richdlg_onClick(fig,ok)
 end
 
 % BUILD CHECKBOX
-function [H,h] = richdlg_build_checkbox(fig,data,h,fw,~,cbh,~,~)
-    pos = [2,h,fw-4,cbh];
-    H = uicontrol(fig,'Style','checkbox','Units','character','Position',pos,'String',data.name,'Value',data.value);
+function [H,h] = richdlg_build_checkbox(fig,data,h,fw,sw,cbh,~,sth)
+    % param name
+    nameHandle = richdlg_build_name(fig,data.name,h,sw,sth); %#ok<*NASGU>
+    pos = [4+sw,h,fw-4,cbh];
+    H = uicontrol(fig,'Style','checkbox','Units','character','Position',pos,'String','','Value',data.value);
     h = h + cbh + 0.5;
 end
 
 % BUILD TITLE
 function [H,h] = richdlg_build_title(fig,data,h,fw,~,cbh,~,~)
     pos = [2,h,fw-4,cbh];
-    H = uicontrol(fig,'Style','text','Units','character','Position',pos,'String',data.name,'FontWeight','bold','FontSize',12);
+    H = uicontrol(fig,'Style','text','Units','character','Position',pos,'String',data.value,'FontWeight','bold','FontSize',12);
     h = h + cbh + 0.5;
 end
 
-% BUILD SINGLE
-function [H,h] = richdlg_build_single(fig,data,h,fw,sw,~,txh,sth)
-    % param name
-    nameHandle = richdlg_build_name(fig,data.name,h,sw,sth);
-    % param value
-    switch data.dtype
-        case 'string'
-            val = data.value;
-        case {'double','integer','vector','matrix'}
-            val = num2str(data.value);
+% BUILD COMMENT
+function [H,h] = richdlg_build_comment(fig,data,h,fw,sw,cbh,txh,sth)
+    S = splitlines(data.value);
+    for i = -size(S,1):-1
+        h = richdlg_build_comment_line(fig,S{-i},h,fw,sw,cbh,txh,sth);
     end
-    % create ui handle
-    bpos = [4+sw,h,fw-6-sw,txh];
-    H = uicontrol(fig,'Style','edit','Units','character','Position',bpos,'String',val);
-    h = h + txh + 0.5;
+    % add space above
+    h = h + 0.5;
+    % return H for uniformity of interface
+    H = [];
+end
+function [h] = richdlg_build_comment_line(fig,str,h,fw,~,cbh,~,~)
+    spos = [10,h,fw-4,cbh];
+    uicontrol(fig,'Style','text','Units','character','Position',spos,'String',str,'HorizontalAlignment','left');
+    h = h + cbh + 0.5;
 end
 
 % BUILD CHOICE
@@ -164,20 +181,29 @@ end
 
 % BUILD MATRIX
 function [H,h] = richdlg_build_matrix(fig,data,h,fw,sw,~,txh,sth)
+    % handle text
+    switch data.dtype
+        case 'double'
+            str = num2str(data.value);
+        case 'string'
+            str = splitlines(data.value);
+    end
     % number of lines
-    N = size(data.value,1);
+    N = size(str,1);
+    box_height = (txh-1)+N;
     % param name
-    nameHandle = richdlg_build_name(fig,data.name,h+txh*(N-1),sw,sth);
-    % param value
-    val = num2str(data.value);
+    nameHandle = richdlg_build_name(fig,data.name,h+box_height-1,sw,sth);
     % create ui handle
-    bpos = [4+sw,h,fw-6-sw,txh*N];
-    H = uicontrol(fig,'Style','edit','Units','character','Position',bpos,'String',val,'Min',0,'Max',2);
-    h = h + txh*N + 0.5;
+    bpos = [4+sw,h,fw-6-sw,box_height];
+    H = uicontrol(fig,'Style','edit','Units','character','Position',bpos,'String',str);
+    h = h + box_height + 0.5;
+    if N > 1
+        set(H,'Min',0,'Max',2);
+    end
 end
 
 % BUILD FILE
-function [H,h] = richdlg_build_file(fig,data,h,fw,sw,~,txh,sth)
+function [H,h] = richdlg_build_file(fig,data,h,fw,sw,~,txh,sth,in_out)
     bw = 5;
     % param name
     nameHandle = richdlg_build_name(fig,data.name,h,sw,sth);
@@ -187,7 +213,7 @@ function [H,h] = richdlg_build_file(fig,data,h,fw,sw,~,txh,sth)
     bpos = [4+sw,h,fw-6-sw-(3+bw),txh];
     H = uicontrol(fig,'Style','edit','Units','character','Position',bpos,'String',val);
     % create button
-    buttonHandle = uicontrol(fig,'Style','pushbutton','Units','character','Position',[fw-2-bw,h,bw,txh],'String','->','Callback',@(~,~)richdlg_set_filePath(H,data.name,data.values));
+    buttonHandle = uicontrol(fig,'Style','pushbutton','Units','character','Position',[fw-2-bw,h,bw,txh],'String','->','Callback',@(~,~)richdlg_set_filePath(H,data.name,data.values,in_out));
     if data.fixed
         set(buttonHandle,'Enable','off');
     end
@@ -201,16 +227,16 @@ function H = richdlg_build_name(fig,str,h,sw,sth)
 end
 
 % SET FILE PATH BUTTON
-function richdlg_set_filePath(uiHandle,title,params)
+function richdlg_set_filePath(uiHandle,title,values,in_out)
     currPath = get(uiHandle,'String');
-    switch params{1}
+    switch in_out
         case 'in'
-            [fName,fPath] = uigetfile(params(2),title,currPath);
+            [fName,fPath] = uigetfile(values,title,currPath);
         case 'out'
-            [fName,fPath] = uiputfile(params(2),title,currPath);
+            [fName,fPath] = uiputfile(values,title,currPath);
     end
     if fName
-        % chenge value
+        % change value
         val = strcat(fPath,fName);
         set(uiHandle,'String',val);
     end
@@ -227,18 +253,22 @@ function [data] = richdlg_post(data,fig)
                         case 'logical'
                             data(i).value = data(i).uihandle.Value;
                         case 'string'
-                            if strcmp(data(i).gtype,'single')
-                                data(i).value = data(i).uihandle.String;
-                            else
+                            if isfield(data(i),'values') && ~isempty(data(i).values)
                                 S = data(i).uihandle.String;
                                 v = data(i).uihandle.Value;
-                                data(i).value = S{v};
+                                data(i).value = S{v};                            
+                            else
+                                data(i).value = data(i).uihandle.String;
                             end
-                        case {'double','integer'}
-                            data(i).value = str2double(data(i).uihandle.String);
-                        case {'vector','matrix'}
-                            data(i).value =str2num(data(i).uihandle.String); %#ok<ST2NM>
-                        case 'file'
+                        case 'double'
+                            if isfield(data(i),'values') && ~isempty(data(i).values)
+                                S = data(i).uihandle.String;
+                                v = data(i).uihandle.Value;
+                                data(i).value = str2num(S{v}); %#ok<ST2NM>
+                            else
+                                data(i).value = str2num(data(i).uihandle.String); %#ok<ST2NM>
+                            end
+                        case {'file_in','file_out'}
                             data(i).value = data(i).uihandle.String;
                     end
                 end
@@ -249,4 +279,19 @@ function [data] = richdlg_post(data,fig)
     else
         data = [];
     end
+end
+
+% POSITION
+function [ position ] = uiPosition( h, units )
+%UIPOSITION get the UI control position in the specified units
+
+    uni = get(h,'Units');
+    set(h,'Units',units);
+    if h == 0
+        position = get(0,'ScreenSize');
+    else
+        position = get(h,'Position');
+    end
+    set(h,'Units',uni);
+
 end
