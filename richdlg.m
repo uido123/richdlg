@@ -85,7 +85,7 @@ function [data,fig] = richdlg_build(data,title)
                 else
                     [H,h] = richdlg_build_matrix(fig,data(i),h,fw,sw,cbh,txh,sth);
                 end
-            case 'double'
+            case {'double','integer'}
                 if isfield(data(i),'values') && ~isempty(data(i).values)
                     [H,h] = richdlg_build_choice(fig,data(i),h,fw,sw,cbh,txh,sth);
                 else
@@ -183,7 +183,7 @@ end
 function [H,h] = richdlg_build_matrix(fig,data,h,fw,sw,~,txh,sth)
     % handle text
     switch data.dtype
-        case 'double'
+        case {'double','integer'}
             str = num2str(data.value);
         case 'string'
             str = splitlines(data.value);
@@ -260,7 +260,7 @@ function [data] = richdlg_post(data,fig)
                             else
                                 data(i).value = data(i).uihandle.String;
                             end
-                        case 'double'
+                        case {'double','integer'}
                             if isfield(data(i),'values') && ~isempty(data(i).values)
                                 S = data(i).uihandle.String;
                                 v = data(i).uihandle.Value;
