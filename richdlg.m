@@ -148,7 +148,11 @@ end
 
 % BUILD COMMENT
 function [H,h] = richdlg_build_comment(fig,data,h,fw,sw,cbh,txh,sth)
-    S = splitlines(data.value);
+    if isempty(which('splitlines'))
+        S = my_splitlines(data.value);
+    else
+        S = splitlines(data.value);
+    end
     for i = -size(S,1):-1
         h = richdlg_build_comment_line(fig,S{-i},h,fw,sw,cbh,txh,sth);
     end
@@ -186,7 +190,12 @@ function [H,h] = richdlg_build_matrix(fig,data,h,fw,sw,~,txh,sth)
         case {'double','integer'}
             str = num2str(data.value);
         case 'string'
-            str = splitlines(data.value);
+            if isempty(which('splitlines'))
+                S = my_splitlines(data.value);
+            else
+                S = splitlines(data.value);
+            end
+%            str = splitlines(data.value);
     end
     % number of lines
     N = size(str,1);
@@ -294,4 +303,18 @@ function [ position ] = uiPosition( h, units )
     end
     set(h,'Units',uni);
 
+end
+
+function C = my_splitlines(S)
+    I = find(S==char(10));
+    if isempty(I)
+        C{1} = S;
+    else
+        I = [0,I];
+        C = cell(numel(I),1);
+        for i = 1:numel(I)-1 
+            C{i} = S(I(i)+1:I(i+1)-1);
+        end
+        C{i+1} = S(I(i+1)+1:end);
+    end
 end
