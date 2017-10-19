@@ -191,9 +191,9 @@ function [H,h] = richdlg_build_matrix(fig,data,h,fw,sw,~,txh,sth)
             str = num2str(data.value);
         case 'string'
             if isempty(which('splitlines'))
-                S = my_splitlines(data.value);
+                str = my_splitlines(data.value);
             else
-                S = splitlines(data.value);
+                str = splitlines(data.value);
             end
 %            str = splitlines(data.value);
     end
