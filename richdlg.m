@@ -268,6 +268,9 @@ function [data] = richdlg_post(data,fig)
                                 data(i).value = S{v};                            
                             else
                                 data(i).value = data(i).uihandle.String;
+                                if iscell(data(i).value) && numel(data(i).value) == 1
+                                    data(i).value = data(i).value{1};
+                                end
                             end
                         case {'double','integer'}
                             if isfield(data(i),'values') && ~isempty(data(i).values)
